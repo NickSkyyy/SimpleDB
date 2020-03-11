@@ -26,6 +26,10 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
+    private Page[] pool;
+    private int numPages;
+    private int curNum;
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -33,6 +37,9 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
+        pool = new Page[numPages];
+        this.numPages = numPages;
+        curNum = 0;
     }
     
     public static int getPageSize() {
@@ -67,6 +74,16 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
+        if (curNum == 0) {
+            curNum++;
+            return pool[pid.hashCode()];
+        }
+        else if (curNum == pool.length)
+            throw new DbException("No more space.");
+        for (int i = 0; i < curNum; i++) {
+            if (tid == pool[i].isDirty() && pid == pool[i].getId())
+                return pool[i];
+        }
         return null;
     }
 

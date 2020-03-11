@@ -21,10 +21,12 @@ public class HeapPage implements Page {
 
     byte[] oldData;
     private final Byte oldDataLock=new Byte((byte)0);
+    private List<Tuple> usedTp;
 
     /**
      * Create a HeapPage from a set of bytes of data read from disk.
-     * The format of a HeapPage is a set of header bytes indicating
+     * The format of a HeapPage is a set of header bytes
+     * indicating
      * the slots of the page that are in use, some number of tuple slots.
      *  Specifically, the number of tuples is equal to: <p>
      *          floor((BufferPool.getPageSize()*8) / (tuple size * 8 + 1))
@@ -67,19 +69,16 @@ public class HeapPage implements Page {
     */
     private int getNumTuples() {        
         // some code goes here
-        return 0;
-
+        return (int)Math.floor(BufferPool.getPageSize() * 8) / (td.getSize() * 8 + 1);
     }
 
     /**
      * Computes the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      * @return the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      */
-    private int getHeaderSize() {        
-        
+    private int getHeaderSize() {
         // some code goes here
-        return 0;
-                 
+        return (int)Math.ceil(numSlots / 8);
     }
     
     /** Return a view of this page before it was modified
@@ -112,7 +111,7 @@ public class HeapPage implements Page {
      */
     public HeapPageId getId() {
     // some code goes here
-    throw new UnsupportedOperationException("implement this");
+        return pid;
     }
 
     /**
@@ -282,7 +281,10 @@ public class HeapPage implements Page {
      */
     public int getNumEmptySlots() {
         // some code goes here
-        return 0;
+        int cnt = 0;
+        for (int i = 0; i < tuples.length; i++)
+            if (tuples[i] == null) cnt++;
+        return cnt;
     }
 
     /**
@@ -290,6 +292,8 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         // some code goes here
+        if (tuples[i] != null)
+            return true;
         return false;
     }
 
@@ -307,7 +311,12 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
-        return null;
+        if (tuples == null)
+            return null;
+        usedTp = new ArrayList<>();
+        for (int i = 0; i < tuples.length; i++)
+            if (tuples[i] != null) usedTp.add(tuples[i]);
+        return usedTp.iterator();
     }
 
 }
