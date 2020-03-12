@@ -292,7 +292,7 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         // some code goes here
-        if (tuples[i] != null)
+        if ((header[i / 8] >> (i % 8) & 1) == 1)
             return true;
         return false;
     }
