@@ -74,17 +74,18 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        if (curNum == 0) {
-            curNum++;
-            return pool[pid.hashCode()];
-        }
-        else if (curNum == pool.length)
+        if (curNum == pool.length)
             throw new DbException("No more space.");
-        for (int i = 0; i < curNum; i++) {
-            if (tid == pool[i].isDirty() && pid == pool[i].getId())
+        for (int i = 0; i < pool.length; i++) {
+            if (pool[i] == null) continue;
+            if (pid.equals(pool[i].getId()))
                 return pool[i];
         }
-        return null;
+        curNum++;
+        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
+        HeapPage hp = (HeapPage)hf.readPage(pid);
+        pool[pid.getPageNumber()] = hp;
+        return hp;
     }
 
     /**

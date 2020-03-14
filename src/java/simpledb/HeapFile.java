@@ -1,5 +1,8 @@
 package simpledb;
 
+import javafx.geometry.HPos;
+
+import java.awt.image.DataBuffer;
 import java.io.*;
 import java.util.*;
 
@@ -17,6 +20,74 @@ public class HeapFile implements DbFile {
 
     private File f;
     private TupleDesc td;
+
+    private class HeapFileIterator implements DbFileIterator {
+        private TransactionId tid;
+        private PageId pid;
+        private boolean mark;   // check if turn to next Page
+        private HeapPage hp;
+        private Iterator<Tuple> it;
+
+        public HeapFileIterator(TransactionId tid) {
+            this.tid = tid;
+        }
+        @Override
+        public void open() throws DbException, TransactionAbortedException {
+            pid = new HeapPageId(getId(), 0);
+            mark = false;
+            hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+            it = hp.iterator();
+        }
+
+        @Override
+        public boolean hasNext() throws DbException, TransactionAbortedException {
+            if (it == null)
+                return false;
+            if (it.hasNext())
+                return true;
+            if (hp.getId().getPageNumber() + 1 < f.length() / BufferPool.getPageSize()) {
+                HeapPageId pid = new HeapPageId(getId(), hp.getId().getPageNumber() + 1);
+                HeapPage hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+                if (hp.iterator().hasNext()) {
+                    mark = true;
+                    return true;
+                }
+                else
+                    return false;
+            }
+            else
+                return false;
+        }
+
+        @Override
+        public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+            if (!hasNext())
+                throw new NoSuchElementException();
+            if (mark) {
+                HeapPageId pid = new HeapPageId(getId(), hp.getId().getPageNumber() + 1);
+                hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+                it = hp.iterator();
+                mark = false;
+            }
+            return it.next();
+        }
+
+        @Override
+        public void rewind() throws DbException, TransactionAbortedException {
+            open();
+        }
+
+        @Override
+        public void close() {
+            try {
+                HeapPageId pid = new HeapPageId(getId(), 0);
+                hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+                it = null;
+            }catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     /**
      * Constructs a heap file backed by the specified file.
@@ -70,21 +141,12 @@ public class HeapFile implements DbFile {
         // some code goes here
         if (f == null)
             return null;
-        byte[] data = null;
         try {
-            FileInputStream fis = new FileInputStream(f);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-            int len;
-            byte[] buffer = new byte[1024];
-            while ((len = fis.read(buffer)) != -1) {
-                baos.write(buffer, 0, len);
-            }
-
-            data = baos.toByteArray();
-
-            baos.close();
-            fis.close();
+            byte[] data = new byte[BufferPool.getPageSize()];
+            RandomAccessFile raf = new RandomAccessFile(f, "r");
+            raf.seek(pid.getPageNumber() * BufferPool.getPageSize());
+            raf.read(data, 0, data.length);
+            raf.close();
             return new HeapPage((HeapPageId)pid, data);
         } catch (Exception e) {
             e.printStackTrace();
@@ -127,10 +189,6 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
-        BufferPool pool = new BufferPool(numPages());
-        HeapPage hp = pool.getPage(tid, )
-        return null;
+        return new HeapFileIterator(tid);
     }
-
 }
-
