@@ -18,8 +18,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe
  */
 public class Catalog {
-    private Map<String, Pair<DbFile, String>> tables;
-    private Map<Integer, String> ids;
+    private Map<String, Pair<DbFile, String>> tables;   // table name to table & key
+    private Map<Integer, String> ids;   // id to table name
 
     /**
      * Constructor.

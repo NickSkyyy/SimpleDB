@@ -1,8 +1,5 @@
 package simpledb;
 
-import javafx.geometry.HPos;
-
-import java.awt.image.DataBuffer;
 import java.io.*;
 import java.util.*;
 
@@ -100,6 +97,7 @@ public class HeapFile implements DbFile {
         // some code goes here
         this.f = f;
         this.td = td;
+        Database.getCatalog().addTable(this);
     }
 
     /**
