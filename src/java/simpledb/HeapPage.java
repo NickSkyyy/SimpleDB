@@ -283,7 +283,7 @@ public class HeapPage implements Page {
         // some code goes here
         int cnt = 0;
         for (int i = 0; i < tuples.length; i++)
-            if (tuples[i] == null) cnt++;
+            if (!isSlotUsed(i)) cnt++;
         return cnt;
     }
 
@@ -315,9 +315,8 @@ public class HeapPage implements Page {
             return null;
         usedTp = new ArrayList<>();
         for (int i = 0; i < tuples.length; i++)
-            if (tuples[i] != null) usedTp.add(tuples[i]);
+            if (isSlotUsed(i)) usedTp.add(tuples[i]);
         return usedTp.iterator();
     }
-
 }
 

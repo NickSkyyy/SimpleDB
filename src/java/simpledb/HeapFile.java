@@ -17,12 +17,11 @@ public class HeapFile implements DbFile {
 
     private File f;
     private TupleDesc td;
+    private int maxPage;
 
     private class HeapFileIterator implements DbFileIterator {
         private TransactionId tid;
-        private PageId pid;
-        private boolean mark;   // check if turn to next Page
-        private HeapPage hp;
+        private int curPage;
         private Iterator<Tuple> it;
 
         public HeapFileIterator(TransactionId tid) {
@@ -30,9 +29,9 @@ public class HeapFile implements DbFile {
         }
         @Override
         public void open() throws DbException, TransactionAbortedException {
-            pid = new HeapPageId(getId(), 0);
-            mark = false;
-            hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+            curPage = 0;
+            HeapPageId pid = new HeapPageId(getId(), curPage);
+            HeapPage hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
             it = hp.iterator();
         }
 
@@ -42,15 +41,12 @@ public class HeapFile implements DbFile {
                 return false;
             if (it.hasNext())
                 return true;
-            if (hp.getId().getPageNumber() + 1 < f.length() / BufferPool.getPageSize()) {
-                HeapPageId pid = new HeapPageId(getId(), hp.getId().getPageNumber() + 1);
+            if (curPage + 1 < f.length() / BufferPool.getPageSize()) {
+                curPage++;
+                HeapPageId pid = new HeapPageId(getId(), curPage);
                 HeapPage hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
-                if (hp.iterator().hasNext()) {
-                    mark = true;
-                    return true;
-                }
-                else
-                    return false;
+                it = hp.iterator();
+                return it.hasNext();
             }
             else
                 return false;
@@ -60,12 +56,6 @@ public class HeapFile implements DbFile {
         public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
             if (!hasNext())
                 throw new NoSuchElementException();
-            if (mark) {
-                HeapPageId pid = new HeapPageId(getId(), hp.getId().getPageNumber() + 1);
-                hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
-                it = hp.iterator();
-                mark = false;
-            }
             return it.next();
         }
 
@@ -76,13 +66,8 @@ public class HeapFile implements DbFile {
 
         @Override
         public void close() {
-            try {
-                HeapPageId pid = new HeapPageId(getId(), 0);
-                hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
-                it = null;
-            }catch (Exception e) {
-                e.printStackTrace();
-            }
+            curPage = 0;
+            it = null;
         }
     }
 
@@ -97,7 +82,7 @@ public class HeapFile implements DbFile {
         // some code goes here
         this.f = f;
         this.td = td;
-        Database.getCatalog().addTable(this);
+        maxPage = (int)f.length() / BufferPool.getPageSize();
     }
 
     /**
@@ -139,17 +124,16 @@ public class HeapFile implements DbFile {
         // some code goes here
         if (f == null)
             return null;
-        try {
-            byte[] data = new byte[BufferPool.getPageSize()];
-            RandomAccessFile raf = new RandomAccessFile(f, "r");
+        Page p = null;
+        byte[] data = new byte[BufferPool.getPageSize()];
+        try(RandomAccessFile raf = new RandomAccessFile(f, "r")){
             raf.seek(pid.getPageNumber() * BufferPool.getPageSize());
             raf.read(data, 0, data.length);
-            raf.close();
-            return new HeapPage((HeapPageId)pid, data);
+            p = new HeapPage((HeapPageId)pid, data);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
+        return p;
     }
 
     // see DbFile.java for javadocs
@@ -165,7 +149,7 @@ public class HeapFile implements DbFile {
         // some code goes here
         if (f == null)
             return 0;
-        return (int)(f.length() / BufferPool.getPageSize());
+        return maxPage;
     }
 
     // see DbFile.java for javadocs

@@ -2,6 +2,8 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,7 +28,7 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
-    private Page[] pool;
+    private Map<PageId, Page> pool; // pageId to Page
     private int numPages;
     private int curNum;
 
@@ -37,7 +39,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
-        pool = new Page[numPages];
+        pool = new HashMap<>(numPages);
         this.numPages = numPages;
         curNum = 0;
     }
@@ -74,17 +76,13 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        if (curNum == pool.length)
-            throw new DbException("No more space.");
-        for (int i = 0; i < pool.length; i++) {
-            if (pool[i] == null) continue;
-            if (pid.equals(pool[i].getId()))
-                return pool[i];
-        }
-        curNum++;
+        if (pool.containsKey(pid))
+            return pool.get(pid);
+        if (curNum + 1 > numPages)
+            throw new DbException("no more space");
         HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
         HeapPage hp = (HeapPage)hf.readPage(pid);
-        pool[pid.getPageNumber()] = hp;
+        pool.put(pid, hp);
         return hp;
     }
 

@@ -219,7 +219,7 @@ public class TupleDesc implements Serializable {
             if (numFields() != td.numFields())
                 return false;
             for (int i = 0; i < numFields(); i++)
-                if (getFieldType(i) != td.getFieldType(i))
+                if (!getFieldType(i).equals(td.getFieldType(i)))
                     return false;
             return true;
         }

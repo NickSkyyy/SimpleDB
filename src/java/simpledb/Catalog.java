@@ -1,6 +1,5 @@
 package simpledb;
 
-import javafx.util.Pair;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -18,7 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe
  */
 public class Catalog {
-    private Map<String, Pair<DbFile, String>> tables;   // table name to table & key
+    private Map<String, DbFile> tables;   // table name to table
+    private Map<String, String> keys;   // table name to key
     private Map<Integer, String> ids;   // id to table name
 
     /**
@@ -28,6 +28,7 @@ public class Catalog {
     public Catalog() {
         // some code goes here
         tables = new HashMap<>();
+        keys = new HashMap<>();
         ids = new HashMap<>();
     }
 
@@ -44,9 +45,16 @@ public class Catalog {
         // some code goes here
         if (tables == null)
             tables = new HashMap<>();
+        if (keys == null)
+            keys = new HashMap<>();
         if (ids == null)
             ids = new HashMap<>();
-        tables.put(name, new Pair<>(file, pkeyField));
+        if (tables.containsKey(name)) {
+            tables.remove(name);
+            ids.remove(file.getId());
+        }
+        tables.put(name, file);
+        keys.put(name, pkeyField);
         ids.put(file.getId(), name);
     }
 
@@ -73,7 +81,7 @@ public class Catalog {
         // some code goes here
         if (name == null || tables == null || !tables.containsKey(name))
             throw new NoSuchElementException();
-        return tables.get(name).getKey().getId();
+        return tables.get(name).getId();
     }
 
     /**
@@ -87,7 +95,7 @@ public class Catalog {
         if (tables == null || !ids.containsKey(tableid))
             throw new NoSuchElementException();
         String name = ids.get(tableid);
-        return tables.get(name).getKey().getTupleDesc();
+        return tables.get(name).getTupleDesc();
     }
 
     /**
@@ -101,7 +109,7 @@ public class Catalog {
         if (tables == null || !ids.containsKey(tableid))
             throw new NoSuchElementException();
         String name = ids.get(tableid);
-        return tables.get(name).getKey();
+        return tables.get(name);
     }
 
     public String getPrimaryKey(int tableid) {
@@ -109,7 +117,7 @@ public class Catalog {
         if (tables == null || !ids.containsKey(tableid))
             throw new NoSuchElementException();
         String name = ids.get(tableid);
-        return tables.get(name).getValue();
+        return keys.get(name);
     }
 
     public Iterator<Integer> tableIdIterator() {
@@ -130,6 +138,7 @@ public class Catalog {
     public void clear() {
         // some code goes here
         tables.clear();
+        keys.clear();
         ids.clear();
     }
     

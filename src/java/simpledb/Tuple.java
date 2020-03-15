@@ -86,13 +86,7 @@ public class Tuple implements Serializable {
         // some code goes here
         if (i < 0 || i >= fields.size())
             return null;
-        Field f = fields.get(i);
-        if (f instanceof IntField)
-            return (IntField)f;
-        else if (f instanceof StringField)
-            return (StringField)f;
-        else
-            return f;
+        return fields.get(i);
     }
 
     /**

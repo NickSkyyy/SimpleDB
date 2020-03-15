@@ -40,7 +40,7 @@ public class HeapPageId implements PageId {
      */
     public int hashCode() {
         // some code goes here
-        return (tableId + pageNum) % 7;
+        return 31 * tableId + pageNum;
     }
 
     /**
