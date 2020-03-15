@@ -30,7 +30,6 @@ public class BufferPool {
 
     private Map<PageId, Page> pool; // pageId to Page
     private int numPages;
-    private int curNum;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -41,7 +40,6 @@ public class BufferPool {
         // some code goes here
         pool = new HashMap<>(numPages);
         this.numPages = numPages;
-        curNum = 0;
     }
     
     public static int getPageSize() {
@@ -78,7 +76,7 @@ public class BufferPool {
         // some code goes here
         if (pool.containsKey(pid))
             return pool.get(pid);
-        if (curNum + 1 > numPages)
+        if (pool.size() + 1 > numPages)
             throw new DbException("no more space");
         HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
         HeapPage hp = (HeapPage)hf.readPage(pid);

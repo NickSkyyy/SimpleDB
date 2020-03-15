@@ -126,7 +126,8 @@ public class HeapFile implements DbFile {
             return null;
         Page p = null;
         byte[] data = new byte[BufferPool.getPageSize()];
-        try(RandomAccessFile raf = new RandomAccessFile(f, "r")){
+        try {
+            RandomAccessFile raf = new RandomAccessFile(f, "r");
             raf.seek(pid.getPageNumber() * BufferPool.getPageSize());
             raf.read(data, 0, data.length);
             p = new HeapPage((HeapPageId)pid, data);
@@ -147,8 +148,6 @@ public class HeapFile implements DbFile {
      */
     public int numPages() {
         // some code goes here
-        if (f == null)
-            return 0;
         return maxPage;
     }
 
