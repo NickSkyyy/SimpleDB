@@ -71,7 +71,7 @@ public class RecordId implements Serializable {
     @Override
     public int hashCode() {
         // some code goes here
-        return 31 * pid.hashCode() + tupleNum;
+        return 3 * pid.hashCode() + tupleNum;
     }
 
 }
