@@ -164,16 +164,6 @@ public class Join extends Operator {
             }
             it2.rewind();
         }
-        it1.rewind();
-        while (it2.hasNext()) {
-            Tuple t2 = it2.next();
-            while (it1.hasNext()) {
-                Tuple t1 = it1.next();
-                if (p.filter(t2, t1))
-                    tuples.add(merge(t2, t1));
-            }
-            it1.rewind();
-        }
         if (tuples == null) return null;
         return ++curTuple < tuples.size() ? tuples.get(curTuple) : null;
     }
