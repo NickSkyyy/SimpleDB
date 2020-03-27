@@ -9,6 +9,13 @@ public class Join extends Operator {
 
     private static final long serialVersionUID = 1L;
 
+    private JoinPredicate p;
+    private TupleDesc td;
+    private OpIterator it1, it2;
+
+    private int curTuple;
+    private List<Tuple> tuples;
+
     /**
      * Constructor. Accepts two children to join and the predicate to join them
      * on
@@ -22,11 +29,45 @@ public class Join extends Operator {
      */
     public Join(JoinPredicate p, OpIterator child1, OpIterator child2) {
         // some code goes here
+        this.p = p;
+        it1 = child1;
+        it2 = child2;
+        curTuple = -1;
+        // set new td
+        TupleDesc td1 = it1.getTupleDesc(), td2 = it2.getTupleDesc();
+        if (td1 == null && td2 == null)
+            td = null;
+        else
+        {
+            int len;
+            if (td1 == null)
+                len = td2.numFields();
+            else if (td2 == null)
+                len = td1.numFields();
+            else
+                len = td1.numFields() + td2.numFields();
+            Type[] typeAr = new Type[len];
+            String[] fieldAr = new String[len];
+            int poi = 0;
+            if (td1 != null)
+                for (int i = 0; i < td1.numFields(); i++) {
+                    typeAr[poi] = td1.getFieldType(i);
+                    fieldAr[poi] = td1.getFieldName(i);
+                    poi++;
+                }
+            if (td2 != null)
+                for (int i = 0; i < td2.numFields(); i++) {
+                    typeAr[poi] = td2.getFieldType(i);
+                    fieldAr[poi] = td2.getFieldName(i);
+                    poi++;
+                }
+            td = new TupleDesc(typeAr, fieldAr);
+        }
     }
 
     public JoinPredicate getJoinPredicate() {
         // some code goes here
-        return null;
+        return p;
     }
 
     /**
@@ -36,7 +77,7 @@ public class Join extends Operator {
      * */
     public String getJoinField1Name() {
         // some code goes here
-        return null;
+        return it1.getTupleDesc().getFieldName(p.getField1());
     }
 
     /**
@@ -46,7 +87,7 @@ public class Join extends Operator {
      * */
     public String getJoinField2Name() {
         // some code goes here
-        return null;
+        return it2.getTupleDesc().getFieldName(p.getField2());
     }
 
     /**
@@ -55,20 +96,39 @@ public class Join extends Operator {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        return td;
     }
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
+        it1.open();
+        it2.open();
+        super.open();
     }
 
     public void close() {
         // some code goes here
+        super.close();
+        it2.close();
+        it1.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
+        it1.rewind();
+        it2.rewind();
+        curTuple = -1;
+    }
+
+    private Tuple merge(Tuple t1, Tuple t2) {
+        Tuple temp = new Tuple(td);
+        int p = 0;
+        for (int i = 0; i < t1.getTupleDesc().numFields(); i++)
+            temp.setField(p++, t1.getField(i));
+        for (int i = 0; i < t2.getTupleDesc().numFields(); i++)
+            temp.setField(p++, t2.getField(i));
+        return temp;
     }
 
     /**
@@ -91,7 +151,31 @@ public class Join extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        if (curTuple != -1)
+            return ++curTuple < tuples.size() ? tuples.get(curTuple) : null;
+        if (tuples == null)
+            tuples = new ArrayList<>();
+        while (it1.hasNext()) {
+            Tuple t1 = it1.next();
+            while (it2.hasNext()) {
+                Tuple t2 = it2.next();
+                if (p.filter(t1, t2))
+                    tuples.add(merge(t1, t2));
+            }
+            it2.rewind();
+        }
+        it1.rewind();
+        while (it2.hasNext()) {
+            Tuple t2 = it2.next();
+            while (it1.hasNext()) {
+                Tuple t1 = it1.next();
+                if (p.filter(t2, t1))
+                    tuples.add(merge(t2, t1));
+            }
+            it1.rewind();
+        }
+        if (tuples == null) return null;
+        return ++curTuple < tuples.size() ? tuples.get(curTuple) : null;
     }
 
     @Override
