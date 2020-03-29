@@ -1,11 +1,75 @@
 package simpledb;
 
+import java.util.*;
+
 /**
  * Knows how to compute some aggregate over a set of IntFields.
  */
 public class IntegerAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
+
+    private int gbNum;
+    private Type gbType;
+    private int aNum;
+    private Op op;
+
+    private Map<Field, Integer> groups;   // (groupVal, aggregateVal)
+    private Map<Field, Integer> cnt;  // count the tuples number of each field
+
+    private List<Tuple> tuples;
+
+    public class IntIterator implements OpIterator {
+        private TupleDesc td;
+        private Iterator<Tuple> it;
+
+        public IntIterator() {
+            Type[] typeAr = new Type[] {gbType, Type.INT_TYPE};
+            td = new TupleDesc(typeAr);
+            if (tuples == null)
+                tuples = new ArrayList<>();
+            Set<Field> keySet = groups.keySet();
+            Iterator<Field> it = keySet.iterator();
+            for (int i = 0; i < groups.size(); i++) {
+                Field key = it.next();
+                Tuple t = new Tuple(td);
+                t.setField(0, key);
+                t.setField(1, new IntField(groups.get(key)));
+                tuples.add(t);
+            }
+        }
+
+        @Override
+        public void open() throws DbException, TransactionAbortedException {
+            it = tuples.iterator();
+        }
+
+        @Override
+        public boolean hasNext() throws DbException, TransactionAbortedException {
+            return it.hasNext();
+        }
+
+        @Override
+        public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+            return it.next();
+        }
+
+        @Override
+        public void rewind() throws DbException, TransactionAbortedException {
+            open();
+        }
+
+        @Override
+        public TupleDesc getTupleDesc() {
+            return td;
+        }
+
+        @Override
+        public void close() {
+            it = null;
+        }
+    }
+    private IntIterator intIT;
 
     /**
      * Aggregate constructor
@@ -24,6 +88,11 @@ public class IntegerAggregator implements Aggregator {
 
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
         // some code goes here
+        gbNum = gbfield;
+        gbType = gbfieldtype;
+        if (gbType == null) gbNum = -1;
+        aNum = afield;
+        op = what;
     }
 
     /**
@@ -35,6 +104,54 @@ public class IntegerAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // some code goes here
+        if (groups == null)
+            groups = new HashMap<>();
+        if (cnt == null)
+            cnt = new HashMap<>();
+        Field key = tup.getField(gbNum);
+        if (op == Op.AVG) {
+            int val = ((IntField)tup.getField(aNum)).getValue(), len = 1;
+            if (cnt.containsKey(key)) {
+                // get origin
+                len = cnt.get(key);
+                val += len * groups.get(key);
+                // compute
+                len++;
+                val /= len;
+            }
+            groups.put(key, val);
+            cnt.put(key, len);
+            return;
+        }
+        if (op == Op.COUNT) {
+            int val = 1;
+            if (cnt.containsKey(key))
+                val += cnt.get(key);
+            groups.put(key, val);
+            cnt.put(key, val);
+            return;
+        }
+        if (op == Op.MAX) {
+            int val = ((IntField)tup.getField(aNum)).getValue();
+            if (groups.containsKey(key))
+                val = Math.max(val, groups.get(key));
+            groups.put(key, val);
+            return;
+        }
+        if (op == Op.MIN) {
+            int val = ((IntField)tup.getField(aNum)).getValue();
+            if (groups.containsKey(key))
+                val = Math.min(val, groups.get(key));
+            groups.put(key, val);
+            return;
+        }
+        if (op == Op.SUM) {
+            int val = ((IntField)tup.getField(aNum)).getValue();
+            if (groups.containsKey(key))
+                val += groups.get(key);
+            groups.put(key, val);
+            return;
+        }
     }
 
     /**
@@ -47,8 +164,8 @@ public class IntegerAggregator implements Aggregator {
      */
     public OpIterator iterator() {
         // some code goes here
-        throw new
-        UnsupportedOperationException("please implement me for lab2");
+        intIT = new IntIterator();
+        return intIT;
     }
 
 }
