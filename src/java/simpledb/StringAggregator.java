@@ -1,11 +1,75 @@
 package simpledb;
 
+import java.util.*;
+
 /**
  * Knows how to compute some aggregate over a set of StringFields.
  */
 public class StringAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
+
+    private int gbNum;
+    private Type gbType;
+    private int aNum;
+    private Op op;
+
+    private Map<Field, Integer> groups;   // (groupVal, aggregateVal)
+    private Map<Field, Integer> cnt;  // count the tuples number of each field
+
+    private List<Tuple> tuples;
+
+    public class StringIterator implements OpIterator {
+        private TupleDesc td;
+        private Iterator<Tuple> it;
+
+        public StringIterator() {
+            Type[] typeAr = new Type[] {gbType, Type.INT_TYPE};
+            td = new TupleDesc(typeAr);
+            if (tuples == null)
+                tuples = new ArrayList<>();
+            Set<Field> keySet = groups.keySet();
+            Iterator<Field> it = keySet.iterator();
+            for (int i = 0; i < groups.size(); i++) {
+                Field key = it.next();
+                Tuple t = new Tuple(td);
+                t.setField(0, key);
+                t.setField(1, new IntField(groups.get(key)));
+                tuples.add(t);
+            }
+        }
+
+        @Override
+        public void open() throws DbException, TransactionAbortedException {
+            it = tuples.iterator();
+        }
+
+        @Override
+        public boolean hasNext() throws DbException, TransactionAbortedException {
+            return it.hasNext();
+        }
+
+        @Override
+        public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+            return it.next();
+        }
+
+        @Override
+        public void rewind() throws DbException, TransactionAbortedException {
+            open();
+        }
+
+        @Override
+        public TupleDesc getTupleDesc() {
+            return td;
+        }
+
+        @Override
+        public void close() {
+            it = null;
+        }
+    }
+    private StringIterator strIT;
 
     /**
      * Aggregate constructor
@@ -18,6 +82,12 @@ public class StringAggregator implements Aggregator {
 
     public StringAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
         // some code goes here
+        gbNum = gbfield;
+        gbType = gbfieldtype;
+        aNum = afield;
+        op = what;
+        if (op != Op.COUNT)
+            throw new IllegalArgumentException();
     }
 
     /**
@@ -26,6 +96,19 @@ public class StringAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // some code goes here
+        if (groups == null)
+            groups = new HashMap<>();
+        if (cnt == null)
+            cnt = new HashMap<>();
+        Field key = tup.getField(gbNum);
+        if (op == Op.COUNT) {
+            int val = 1;
+            if (cnt.containsKey(key))
+                val += cnt.get(key);
+            groups.put(key, val);
+            cnt.put(key, val);
+            return;
+        }
     }
 
     /**
@@ -38,7 +121,8 @@ public class StringAggregator implements Aggregator {
      */
     public OpIterator iterator() {
         // some code goes here
-        throw new UnsupportedOperationException("please implement me for lab2");
+        strIT = new StringIterator();
+        return strIT;
     }
 
 }
