@@ -11,6 +11,15 @@ public class Aggregate extends Operator {
 
     private static final long serialVersionUID = 1L;
 
+    private OpIterator it;
+    private int aNum;
+    private int gbNum;
+    private Aggregator.Op op;
+
+    private TupleDesc td;
+    private Aggregator agg;
+    private OpIterator result;
+
     /**
      * Constructor.
      * 
@@ -31,6 +40,16 @@ public class Aggregate extends Operator {
      */
     public Aggregate(OpIterator child, int afield, int gfield, Aggregator.Op aop) {
 	// some code goes here
+        it = child;
+        aNum = afield;
+        gbNum = gfield;
+        op = aop;
+        td = it.getTupleDesc();
+        Type type = gbNum == -1 ? null : td.getFieldType(gbNum);
+        if (td.getFieldType(aNum) == Type.INT_TYPE)
+            agg = new IntegerAggregator(gbNum, type, aNum, aop);
+        else if (td.getFieldType(aNum) == Type.STRING_TYPE)
+            agg = new IntegerAggregator(gbNum, type, aNum, aop);
     }
 
     /**
@@ -40,7 +59,7 @@ public class Aggregate extends Operator {
      * */
     public int groupField() {
 	// some code goes here
-	return -1;
+	    return gbNum;
     }
 
     /**
@@ -50,7 +69,9 @@ public class Aggregate extends Operator {
      * */
     public String groupFieldName() {
 	// some code goes here
-	return null;
+        if (gbNum == -1)
+	        return null;
+        return result.getTupleDesc().getFieldName(0);
     }
 
     /**
@@ -58,7 +79,7 @@ public class Aggregate extends Operator {
      * */
     public int aggregateField() {
 	// some code goes here
-	return -1;
+	    return aNum;
     }
 
     /**
@@ -67,7 +88,7 @@ public class Aggregate extends Operator {
      * */
     public String aggregateFieldName() {
 	// some code goes here
-	return null;
+        return result.getTupleDesc().getFieldName(1);
     }
 
     /**
@@ -75,7 +96,7 @@ public class Aggregate extends Operator {
      * */
     public Aggregator.Op aggregateOp() {
 	// some code goes here
-	return null;
+	    return op;
     }
 
     public static String nameOfAggregatorOp(Aggregator.Op aop) {
@@ -85,6 +106,12 @@ public class Aggregate extends Operator {
     public void open() throws NoSuchElementException, DbException,
 	    TransactionAbortedException {
 	// some code goes here
+        super.open();
+        it.open();
+        while (it.hasNext())
+            agg.mergeTupleIntoGroup(it.next());
+        result = agg.iterator();
+        result.open();
     }
 
     /**
@@ -96,11 +123,15 @@ public class Aggregate extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
 	// some code goes here
-	return null;
+        if (result.hasNext())
+            return result.next();
+        return null;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
 	// some code goes here
+        result.rewind();
+        it.rewind();
     }
 
     /**
@@ -116,11 +147,24 @@ public class Aggregate extends Operator {
      */
     public TupleDesc getTupleDesc() {
 	// some code goes here
-	return null;
+        Type[] typeAr;
+        String[] fieldAr;
+        if (gbNum == -1) {
+            typeAr = new Type[]{Type.INT_TYPE};
+            fieldAr = new String[]{td.getFieldName(aNum)};
+        }
+        else {
+            typeAr = new Type[]{td.getFieldType(gbNum), Type.INT_TYPE};
+            fieldAr = new String[]{td.getFieldName(gbNum), td.getFieldName(aNum)};
+        }
+        return new TupleDesc(typeAr, fieldAr);
     }
 
     public void close() {
 	// some code goes here
+        result.close();
+        it.close();
+        super.close();
     }
 
     @Override

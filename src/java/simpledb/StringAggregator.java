@@ -24,17 +24,28 @@ public class StringAggregator implements Aggregator {
         private Iterator<Tuple> it;
 
         public StringIterator() {
-            Type[] typeAr = new Type[] {gbType, Type.INT_TYPE};
-            td = new TupleDesc(typeAr);
+            Type[] typeAr;
             if (tuples == null)
                 tuples = new ArrayList<>();
             Set<Field> keySet = groups.keySet();
             Iterator<Field> it = keySet.iterator();
             for (int i = 0; i < groups.size(); i++) {
                 Field key = it.next();
-                Tuple t = new Tuple(td);
-                t.setField(0, key);
-                t.setField(1, new IntField(groups.get(key)));
+                TupleDesc td;
+                Tuple t;
+                if (key == null) {
+                    typeAr = new Type[] {Type.INT_TYPE};
+                    td = new TupleDesc(typeAr);
+                    t = new Tuple(td);
+                    t.setField(0, new IntField(groups.get(key) / cnt.get(key)));
+                }
+                else {
+                    typeAr = new Type[] {gbType, Type.INT_TYPE};
+                    td = new TupleDesc(typeAr);
+                    t = new Tuple(td);
+                    t.setField(0, key);
+                    t.setField(1, new IntField(groups.get(key) / cnt.get(key)));
+                }
                 tuples.add(t);
             }
         }
@@ -100,13 +111,13 @@ public class StringAggregator implements Aggregator {
             groups = new HashMap<>();
         if (cnt == null)
             cnt = new HashMap<>();
-        Field key = tup.getField(gbNum);
+        Field key = gbNum == -1 ? null : tup.getField(gbNum);
         if (op == Op.COUNT) {
             int val = 1;
             if (cnt.containsKey(key))
-                val += cnt.get(key);
+                val += groups.get(key);
             groups.put(key, val);
-            cnt.put(key, val);
+            cnt.put(key, 1);
             return;
         }
     }
