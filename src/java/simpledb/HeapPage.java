@@ -22,6 +22,8 @@ public class HeapPage implements Page {
     byte[] oldData;
     private final Byte oldDataLock=new Byte((byte)0);
     private List<Tuple> usedTp;
+    private TransactionId tid;
+    private boolean isDirty;
 
     /**
      * Create a HeapPage from a set of bytes of data read from disk.
@@ -244,6 +246,8 @@ public class HeapPage implements Page {
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
+        if (usedTp == null)
+            iterator();
         RecordId rid = t.getRecordId();
         PageId pid = rid.getPageId();
         int i = rid.getTupleNumber();
@@ -289,6 +293,8 @@ public class HeapPage implements Page {
     public void markDirty(boolean dirty, TransactionId tid) {
         // some code goes here
 	// not necessary for lab1
+        isDirty = dirty;
+        this.tid = dirty ? tid : null;
     }
 
     /**
@@ -297,7 +303,7 @@ public class HeapPage implements Page {
     public TransactionId isDirty() {
         // some code goes here
 	// Not necessary for lab1
-        return null;      
+        return tid;
     }
 
     /**

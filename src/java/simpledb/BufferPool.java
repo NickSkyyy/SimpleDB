@@ -2,9 +2,9 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -29,6 +29,7 @@ public class BufferPool {
     public static final int DEFAULT_PAGES = 50;
 
     private Map<PageId, Page> pool; // pageId to Page
+    private ArrayList<PageId> order;    // record the order of getPage
     private int numPages;
 
     /**
@@ -76,11 +77,16 @@ public class BufferPool {
         // some code goes here
         if (pool.containsKey(pid))
             return pool.get(pid);
-        if (pool.size() + 1 > numPages)
-            throw new DbException("no more space");
+        if (pool.size() + 1 > numPages) {
+            PageId id = order.get(0);
+            pool.remove(id);
+        }
+        if (order == null)
+            order = new ArrayList<>();
         HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
         HeapPage hp = (HeapPage)hf.readPage(pid);
         pool.put(pid, hp);
+        order.add(pid);
         return hp;
     }
 
@@ -147,6 +153,10 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(tableId);
+        ArrayList<Page> pages = hf.insertTuple(tid, t);
+        for (int i = 0; i < pages.size(); i++)
+            pages.get(i).markDirty(true, tid);
     }
 
     /**
@@ -166,6 +176,11 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+        int id = t.getRecordId().getPageId().getTableId();
+        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(id);
+        ArrayList<Page> pages = hf.deleteTuple(tid, t);
+        for (int i = 0; i < pages.size(); i++)
+            pages.get(i).markDirty(true, tid);
     }
 
     /**
