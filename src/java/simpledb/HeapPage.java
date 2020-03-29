@@ -244,6 +244,16 @@ public class HeapPage implements Page {
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
+        RecordId rid = t.getRecordId();
+        PageId pid = rid.getPageId();
+        int i = rid.getTupleNumber();
+        if (!this.pid.equals(pid))
+            throw new DbException("Not on this page.");
+        if (!isSlotUsed(i))
+            throw new DbException("Already empty.");
+        tuples[i] = null;
+        usedTp.remove(t);
+        markSlotUsed(i, false);
     }
 
     /**
@@ -256,6 +266,20 @@ public class HeapPage implements Page {
     public void insertTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
+        if (usedTp == null)
+            iterator();
+        if (usedTp.size() == numSlots)
+            throw new DbException("Page is full.");
+        if (!td.equals(t.getTupleDesc()))
+            throw new DbException("Fail to match TupleDesc.");
+        for (int i = 0; i < tuples.length; i++)
+            if (!isSlotUsed(i)) {
+                t.setRecordId(new RecordId(pid, i));
+                tuples[i] = t;
+                usedTp.add(t);
+                markSlotUsed(i, true);
+                break;
+            }
     }
 
     /**
@@ -303,6 +327,10 @@ public class HeapPage implements Page {
     private void markSlotUsed(int i, boolean value) {
         // some code goes here
         // not necessary for lab1
+        if (value)
+            header[i / 8] = (byte)(header[i / 8] | (1 << (i % 8)));
+        else
+            header[i / 8] = (byte)(header[i / 8] & ~(1 << (i % 8)));
     }
 
     /**
@@ -311,11 +339,14 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
+        if (usedTp != null)
+            return usedTp.iterator();
         if (tuples == null)
             return null;
         usedTp = new ArrayList<>();
         for (int i = 0; i < tuples.length; i++)
-            if (isSlotUsed(i)) usedTp.add(tuples[i]);
+            if (isSlotUsed(i))
+                usedTp.add(tuples[i]);
         return usedTp.iterator();
     }
 }
