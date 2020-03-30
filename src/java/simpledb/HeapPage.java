@@ -249,7 +249,7 @@ public class HeapPage implements Page {
         if (usedTp == null)
             iterator();
         RecordId rid = t.getRecordId();
-        PageId pid = rid.getPageId();
+        HeapPageId pid = (HeapPageId)rid.getPageId();
         int i = rid.getTupleNumber();
         if (!this.pid.equals(pid))
             throw new DbException("Not on this page.");
@@ -278,8 +278,8 @@ public class HeapPage implements Page {
             throw new DbException("Fail to match TupleDesc.");
         for (int i = 0; i < tuples.length; i++)
             if (!isSlotUsed(i)) {
-                t.setRecordId(new RecordId(pid, i));
                 tuples[i] = t;
+                t.setRecordId(new RecordId(pid, i));
                 usedTp.add(t);
                 markSlotUsed(i, true);
                 break;

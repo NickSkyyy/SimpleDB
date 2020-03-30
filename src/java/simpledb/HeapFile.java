@@ -82,7 +82,7 @@ public class HeapFile implements DbFile {
         // some code goes here
         this.f = f;
         this.td = td;
-        maxPage = (int)f.length() / BufferPool.getPageSize();
+        maxPage = (int)(f.length() / BufferPool.getPageSize());
     }
 
     /**
@@ -156,7 +156,7 @@ public class HeapFile implements DbFile {
      */
     public int numPages() {
         // some code goes here
-        return maxPage;
+        return maxPage = (int)(f.length() / BufferPool.getPageSize());
     }
 
     // see DbFile.java for javadocs
@@ -170,7 +170,6 @@ public class HeapFile implements DbFile {
             HeapPage hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
             if (hp.getNumEmptySlots() != 0) {
                 hp.insertTuple(t);
-                hp.markDirty(true, tid);
                 pages.add(hp);
                 break;
             }
@@ -181,7 +180,6 @@ public class HeapFile implements DbFile {
             writePage(hp);
             hp = (HeapPage)Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
             hp.insertTuple(t);
-            hp.markDirty(true, tid);
             pages.add(hp);
         }
         return pages;
