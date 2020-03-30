@@ -2,9 +2,7 @@ package simpledb;
 
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -28,7 +26,7 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
-    private Map<Integer, Page> pool; // pageId.hashCode to Page
+    private Map<PageId, Page> pool; // PageId to Page
     private ArrayList<PageId> order;    // record the order of getPage
     private int numPages;
 
@@ -75,15 +73,15 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        if (pool.containsKey(pid.hashCode()))
-            return pool.get(pid.hashCode());
+        if (pool.containsKey(pid))
+            return pool.get(pid);
         if (pool.size() + 1 > numPages)
-            throw new DbException("No more space.");
+            evictPage();
         if (order == null)
             order = new ArrayList<>();
         HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
         HeapPage hp = (HeapPage)hf.readPage(pid);
-        pool.put(pid.hashCode(), hp);
+        pool.put(pid, hp);
         order.add(pid);
         return hp;
     }
@@ -155,7 +153,7 @@ public class BufferPool {
         ArrayList<Page> pages = hf.insertTuple(tid, t);
         for (int i = 0; i < pages.size(); i++) {
             pages.get(i).markDirty(true, tid);
-            pool.put(pages.get(i).getId().hashCode(), pages.get(i));
+            pool.put(pages.get(i).getId(), pages.get(i));
         }
     }
 
@@ -191,7 +189,14 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for lab1
-
+        Set<PageId> key = pool.keySet();
+        Iterator<PageId> it = key.iterator();
+        while (it.hasNext()) {
+            PageId pid = it.next();
+            HeapPage hp = (HeapPage)pool.get(pid);
+            if (hp.isDirty() != null)
+                flushPage(pid);
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -205,6 +210,8 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // not necessary for lab1
+        pool.remove(pid);
+        order.remove(pid);
     }
 
     /**
@@ -214,6 +221,16 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
+        HeapPage hp = (HeapPage)pool.get(pid);
+        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
+        try {
+            RandomAccessFile raf = new RandomAccessFile(hf.getFile(), "rw");
+            raf.seek(hp.getId().getPageNumber() * BufferPool.getPageSize());
+            byte[] data = hp.getPageData();
+            raf.write(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -221,6 +238,14 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        Set<PageId> key = pool.keySet();
+        Iterator<PageId> it = key.iterator();
+        while (it.hasNext()) {
+            PageId pid = it.next();
+            HeapPage hp = (HeapPage)pool.get(pid);
+            if (hp.isDirty().equals(tid))
+                flushPage(pid);
+        }
     }
 
     /**
@@ -230,6 +255,16 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+        PageId pid = order.get(0);
+        order.remove(pid);
+        try {
+            HeapPage hp = (HeapPage)pool.get(pid);
+            if (hp.isDirty() != null)
+                flushPage(pid);
+            pool.remove(pid);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
 }
