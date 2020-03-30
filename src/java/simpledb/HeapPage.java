@@ -246,8 +246,6 @@ public class HeapPage implements Page {
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
-        if (usedTp == null)
-            iterator();
         RecordId rid = t.getRecordId();
         HeapPageId pid = (HeapPageId)rid.getPageId();
         int i = rid.getTupleNumber();
@@ -256,7 +254,6 @@ public class HeapPage implements Page {
         if (!isSlotUsed(i))
             throw new DbException("Already empty.");
         tuples[i] = null;
-        usedTp.remove(t);
         markSlotUsed(i, false);
     }
 
@@ -280,7 +277,6 @@ public class HeapPage implements Page {
             if (!isSlotUsed(i)) {
                 tuples[i] = t;
                 t.setRecordId(new RecordId(pid, i));
-                usedTp.add(t);
                 markSlotUsed(i, true);
                 break;
             }
@@ -345,8 +341,6 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
-        if (usedTp != null)
-            return usedTp.iterator();
         if (tuples == null)
             return null;
         usedTp = new ArrayList<>();

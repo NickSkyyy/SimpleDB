@@ -1,5 +1,6 @@
 package simpledb;
 
+import javax.lang.model.element.TypeElement;
 import java.io.IOException;
 
 /**
@@ -9,6 +10,12 @@ import java.io.IOException;
 public class Delete extends Operator {
 
     private static final long serialVersionUID = 1L;
+
+    private TransactionId tid;
+    private OpIterator it;
+    private TupleDesc td;
+    private int mark;
+    private int cnt;
 
     /**
      * Constructor specifying the transaction that this delete belongs to as
@@ -21,6 +28,10 @@ public class Delete extends Operator {
      */
     public Delete(TransactionId t, OpIterator child) {
         // some code goes here
+        tid = t;
+        it = child;
+        td = new TupleDesc(new Type[]{Type.INT_TYPE});
+        cnt = 0;
     }
 
     public TupleDesc getTupleDesc() {
@@ -30,14 +41,30 @@ public class Delete extends Operator {
 
     public void open() throws DbException, TransactionAbortedException {
         // some code goes here
+        mark = 0;
+        super.open();
+        it.open();
+        while (it.hasNext()) {
+            Tuple t = it.next();
+            try {
+                Database.getBufferPool().deleteTuple(tid, t);
+                cnt++;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public void close() {
         // some code goes here
+        it.close();
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
+        mark = 0;
+        it.rewind();
     }
 
     /**
@@ -51,18 +78,24 @@ public class Delete extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        if (mark == 1)
+            return null;
+        mark = 1;
+        Tuple t = new Tuple(td);
+        t.setField(0, new IntField(cnt));
+        return t;
     }
 
     @Override
     public OpIterator[] getChildren() {
         // some code goes here
-        return null;
+        return new OpIterator[]{it};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
         // some code goes here
+        it = children[0];
     }
 
 }

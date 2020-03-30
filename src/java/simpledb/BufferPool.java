@@ -179,10 +179,8 @@ public class BufferPool {
         int id = t.getRecordId().getPageId().getTableId();
         HeapFile hf = (HeapFile) Database.getCatalog().getDatabaseFile(id);
         ArrayList<Page> pages = hf.deleteTuple(tid, t);
-        for (int i = 0; i < pages.size(); i++) {
+        for (int i = 0; i < pages.size(); i++)
             pages.get(i).markDirty(true, tid);
-            pool.put(pages.get(i).getId().hashCode(), pages.get(i));
-        }
     }
 
     /**
