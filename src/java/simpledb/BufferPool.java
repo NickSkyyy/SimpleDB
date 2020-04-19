@@ -91,10 +91,23 @@ public class BufferPool {
         }
         if (dbf instanceof BTreeFile) {
             BTreeFile btf = (BTreeFile)dbf;
-            BTreePage hp = (BTreePage)btf.readPage(pid);
-            pool.put(pid, hp);
+            Page p = btf.readPage(pid);
             order.add(pid);
-            return hp;
+            if (p instanceof BTreePage) {
+                BTreePage btp = (BTreePage)p;
+                pool.put(pid, btp);
+                return btp;
+            }
+            else if (p instanceof BTreeRootPtrPage) {
+                BTreeRootPtrPage btrpp = (BTreeRootPtrPage)p;
+                pool.put(pid, btrpp);
+                return btrpp;
+            }
+            else if (p instanceof BTreeHeaderPage) {
+                BTreeHeaderPage bthp = (BTreeHeaderPage)p;
+                pool.put(pid, bthp);
+                return bthp;
+            }
         }
         return null;
     }

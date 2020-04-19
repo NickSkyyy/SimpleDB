@@ -202,17 +202,21 @@ public class BTreeFile implements DbFile {
                 BTreeEntry bte = it.next();
                 if (f == null)
                     return findLeafPage(tid, dirtypages, bte.getLeftChild(), perm, f);
-                if (!f.equals(bte.getKey())) continue;
-                BTreeLeafPage left = null, right = null;
-                left = findLeafPage(tid, dirtypages, bte.getLeftChild(), perm, f);
-                right = findLeafPage(tid, dirtypages, bte.getRightChild(), perm, f);
-                return left == null ? right : left;
+                int fv = ((IntField)f).getValue(), btev = ((IntField)bte.getKey()).getValue();
+                if (fv <= btev)
+                	return findLeafPage(tid, dirtypages, bte.getLeftChild(), perm, f);
+                else {
+                	if (it.hasNext()) continue;
+                	return findLeafPage(tid, dirtypages, bte.getRightChild(), perm, f);
+				}
             }
         }
-        else if (pid.pgcateg() == BTreePageId.LEAF) {
-            BTreeLeafPage btlp = (BTreeLeafPage) getPage(tid, dirtypages, pid, perm);
-            return btlp;
+        else if (pid.pgcateg() == BTreePageId.ROOT_PTR) {
+        	BTreeRootPtrPage btrpp = (BTreeRootPtrPage)getPage(tid, dirtypages, pid, Permissions.READ_ONLY);
+			return findLeafPage(tid, dirtypages, btrpp.getRootId(), perm, f);
         }
+        else if (pid.pgcateg() == BTreePageId.LEAF)
+            return (BTreeLeafPage)getPage(tid, dirtypages, pid, perm);
         return null;
 	}
 	
