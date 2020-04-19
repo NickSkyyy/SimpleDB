@@ -1,5 +1,7 @@
 package simpledb;
 
+import com.sun.imageio.plugins.common.BitFile;
+
 import java.io.*;
 
 import java.util.*;
@@ -79,11 +81,22 @@ public class BufferPool {
             evictPage();
         if (order == null)
             order = new ArrayList<>();
-        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
-        HeapPage hp = (HeapPage)hf.readPage(pid);
-        pool.put(pid, hp);
-        order.add(pid);
-        return hp;
+        DbFile dbf = Database.getCatalog().getDatabaseFile(pid.getTableId());
+        if (dbf instanceof HeapFile) {
+            HeapFile hf = (HeapFile)dbf;
+            HeapPage hp = (HeapPage)hf.readPage(pid);
+            pool.put(pid, hp);
+            order.add(pid);
+            return hp;
+        }
+        if (dbf instanceof BTreeFile) {
+            BTreeFile btf = (BTreeFile)dbf;
+            BTreePage hp = (BTreePage)btf.readPage(pid);
+            pool.put(pid, hp);
+            order.add(pid);
+            return hp;
+        }
+        return null;
     }
 
     /**
