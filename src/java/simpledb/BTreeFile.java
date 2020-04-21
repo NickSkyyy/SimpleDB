@@ -275,15 +275,14 @@ public class BTreeFile implements DbFile {
         btlp.setLeftSiblingId(page.getId());
         btlp.setRightSiblingId(right.getId());
         right.setLeftSiblingId(btlp.getId());
-        Iterator<Tuple> it = page.reverseIterator();
 
-        // copy into the new page
+        // copy into new page
+        Iterator<Tuple> it = page.reverseIterator();
         int cnt = page.getNumTuples() / 2;
         while (cnt > 0) {
             cnt--;
             if (!it.hasNext()) break;
-            Tuple t = it.next();
-            btlp.insertTuple(t);
+            btlp.insertTuple(it.next());
         }
 
         // deal with upper key
@@ -336,7 +335,32 @@ public class BTreeFile implements DbFile {
 		// will be useful here.  Return the page into which an entry with the given key field
 		// should be inserted.
         BTreeInternalPage btip = (BTreeInternalPage)getEmptyPage(tid, dirtypages, BTreePageId.INTERNAL);
-		return null;
+
+        // copy into new page
+        Iterator<BTreeEntry> it = page.reverseIterator();
+        int cnt = page.getNumEntries() / 2;
+        while (cnt > 0) {
+            cnt--;
+            if (!it.hasNext()) break;
+            BTreeEntry bte = it.next();
+            btip.insertEntry(bte);
+            btip.updateEntry(bte);
+        }
+
+        // delete from page
+        it = btip.reverseIterator();
+        while (it.hasNext()) {
+            BTreeEntry bte = it.next();
+            page.deleteKeyAndRightChild(bte);
+            page.updateEntry(bte);
+        }
+        // deal with the upper key
+        it = page.reverseIterator();
+        BTreeEntry upper = it.next();
+        getParentWithEmptySlots(tid, dirtypages, page.getParentId(), upper.getKey());
+        updateParentPointers(tid, dirtypages, btip);
+        int fv = ((IntField)field).getValue(), kv = ((IntField)upper.getKey()).getValue();
+		return fv <= kv ? page : btip;
 	}
 	
 	/**
