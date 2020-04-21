@@ -274,7 +274,8 @@ public class BTreeFile implements DbFile {
         if (page.getRightSiblingId() != null) {
         	BTreeLeafPage right = (BTreeLeafPage)getPage(tid, dirtypages, page.getRightSiblingId(), Permissions.READ_WRITE);
         	dirtypages.put(right.getId(), right);
-        	right.setLeftSiblingId(btlp.get);
+        	right.setLeftSiblingId(btlp.getId());
+        	btlp.setRightSiblingId(right.getId());
 		}
 
         // set sibling
