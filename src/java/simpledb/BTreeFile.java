@@ -268,36 +268,46 @@ public class BTreeFile implements DbFile {
 		// the sibling pointers of all the affected leaf pages.  Return the page into which a 
 		// tuple with the given key field should be inserted.
         BTreeLeafPage btlp = (BTreeLeafPage)getEmptyPage(tid, dirtypages, BTreePageId.LEAF);
-        BTreeLeafPage right = (BTreeLeafPage)getPage(tid, dirtypages, page.getRightSiblingId(), Permissions.READ_WRITE);
+		dirtypages.put(page.getId(), page);
+        dirtypages.put(btlp.getId(), btlp);
+
+        if (page.getRightSiblingId() != null) {
+        	BTreeLeafPage right = (BTreeLeafPage)getPage(tid, dirtypages, page.getRightSiblingId(), Permissions.READ_WRITE);
+        	dirtypages.put(right.getId(), right);
+        	right.setLeftSiblingId(btlp.get);
+		}
 
         // set sibling
         page.setRightSiblingId(btlp.getId());
         btlp.setLeftSiblingId(page.getId());
-        btlp.setRightSiblingId(right.getId());
-        right.setLeftSiblingId(btlp.getId());
 
         // copy into new page
         Iterator<Tuple> it = page.reverseIterator();
         int cnt = page.getNumTuples() / 2;
         while (cnt > 0) {
             cnt--;
-            if (!it.hasNext()) break;
-            btlp.insertTuple(it.next());
+			Tuple t = it.next();
+			page.deleteTuple(t);
+            btlp.insertTuple(t);
         }
+		Field left = it.next().getField(keyField);
 
-        // deal with upper key
+		// deal with upper key
         it = btlp.iterator();
-        Tuple upper = it.next();
-        page.deleteTuple(upper);
-        // delete tuples from page
-        while (it.hasNext()) {
-            page.deleteTuple(it.next());
-        }
+        Field key = it.next().getField(keyField);
+        BTreeInternalPage parent = getParentWithEmptySlots(tid, dirtypages, page.getParentId(), key);
+		dirtypages.put(parent.getId(), parent);
+        parent.insertEntry(new BTreeEntry(key, page.getId(), btlp.getId()));
+		updateParentPointers(tid, dirtypages, parent);
 
-        Field key = upper.getField(keyField);
-        getParentWithEmptySlots(tid, dirtypages, page.getParentId(), key);
-        int fv = ((IntField)field).getValue(), kv = ((IntField)key).getValue();
-        return fv <= kv ? page : btlp;
+		// return page
+        int fv = ((IntField)field).getValue(), kv = ((IntField)key).getValue(), lv = ((IntField)left).getValue();
+        if (fv < kv)
+        	return page;
+        else if (fv == kv)
+        	return lv == fv ? page : btlp;
+        else
+        	return btlp;
 	}
 	
 	/**
@@ -335,6 +345,8 @@ public class BTreeFile implements DbFile {
 		// will be useful here.  Return the page into which an entry with the given key field
 		// should be inserted.
         BTreeInternalPage btip = (BTreeInternalPage)getEmptyPage(tid, dirtypages, BTreePageId.INTERNAL);
+		dirtypages.put(page.getId(), page);
+        dirtypages.put(btip.getId(), btip);
 
         // copy into new page
         Iterator<BTreeEntry> it = page.reverseIterator();
@@ -343,22 +355,20 @@ public class BTreeFile implements DbFile {
             cnt--;
             if (!it.hasNext()) break;
             BTreeEntry bte = it.next();
+            page.deleteKeyAndRightChild(bte);
             btip.insertEntry(bte);
-            btip.updateEntry(bte);
         }
 
-        // delete from page
-        it = btip.reverseIterator();
-        while (it.hasNext()) {
-            BTreeEntry bte = it.next();
-            page.deleteKeyAndRightChild(bte);
-            page.updateEntry(bte);
-        }
         // deal with the upper key
         it = page.reverseIterator();
         BTreeEntry upper = it.next();
-        getParentWithEmptySlots(tid, dirtypages, page.getParentId(), upper.getKey());
+        page.deleteKeyAndRightChild(upper);
+        BTreeInternalPage parnet = getParentWithEmptySlots(tid, dirtypages, page.getParentId(), upper.getKey());
+        dirtypages.put(parnet.getId(), parnet);
+        parnet.insertEntry(new BTreeEntry(upper.getKey(), page.getId(), btip.getId()));
         updateParentPointers(tid, dirtypages, btip);
+
+        // return page
         int fv = ((IntField)field).getValue(), kv = ((IntField)upper.getKey()).getValue();
 		return fv <= kv ? page : btip;
 	}

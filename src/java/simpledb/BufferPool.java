@@ -2,6 +2,7 @@ package simpledb;
 
 import com.sun.imageio.plugins.common.BitFile;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 
 import java.util.*;
@@ -82,34 +83,10 @@ public class BufferPool {
         if (order == null)
             order = new ArrayList<>();
         DbFile dbf = Database.getCatalog().getDatabaseFile(pid.getTableId());
-        if (dbf instanceof HeapFile) {
-            HeapFile hf = (HeapFile)dbf;
-            HeapPage hp = (HeapPage)hf.readPage(pid);
-            pool.put(pid, hp);
-            order.add(pid);
-            return hp;
-        }
-        if (dbf instanceof BTreeFile) {
-            BTreeFile btf = (BTreeFile)dbf;
-            Page p = btf.readPage(pid);
-            order.add(pid);
-            if (p instanceof BTreePage) {
-                BTreePage btp = (BTreePage)p;
-                pool.put(pid, btp);
-                return btp;
-            }
-            else if (p instanceof BTreeRootPtrPage) {
-                BTreeRootPtrPage btrpp = (BTreeRootPtrPage)p;
-                pool.put(pid, btrpp);
-                return btrpp;
-            }
-            else if (p instanceof BTreeHeaderPage) {
-                BTreeHeaderPage bthp = (BTreeHeaderPage)p;
-                pool.put(pid, bthp);
-                return bthp;
-            }
-        }
-        return null;
+        Page p = dbf.readPage(pid);
+        pool.put(pid, p);
+        order.add(pid);
+        return p;
     }
 
     /**
@@ -175,8 +152,8 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
-        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(tableId);
-        ArrayList<Page> pages = hf.insertTuple(tid, t);
+        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
+        ArrayList<Page> pages = file.insertTuple(tid, t);
         for (int i = 0; i < pages.size(); i++) {
             pages.get(i).markDirty(true, tid);
             pool.put(pages.get(i).getId(), pages.get(i));
@@ -201,8 +178,8 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
         int id = t.getRecordId().getPageId().getTableId();
-        HeapFile hf = (HeapFile) Database.getCatalog().getDatabaseFile(id);
-        ArrayList<Page> pages = hf.deleteTuple(tid, t);
+        DbFile file = Database.getCatalog().getDatabaseFile(id);
+        ArrayList<Page> pages = file.deleteTuple(tid, t);
         for (int i = 0; i < pages.size(); i++)
             pages.get(i).markDirty(true, tid);
     }
@@ -219,8 +196,8 @@ public class BufferPool {
         Iterator<PageId> it = key.iterator();
         while (it.hasNext()) {
             PageId pid = it.next();
-            HeapPage hp = (HeapPage)pool.get(pid);
-            if (hp.isDirty() != null)
+            Page p = pool.get(pid);
+            if (p.isDirty() != null)
                 flushPage(pid);
         }
     }
@@ -247,16 +224,9 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
-        HeapPage hp = (HeapPage)pool.get(pid);
-        HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(pid.getTableId());
-        try {
-            RandomAccessFile raf = new RandomAccessFile(hf.getFile(), "rw");
-            raf.seek(hp.getId().getPageNumber() * BufferPool.getPageSize());
-            byte[] data = hp.getPageData();
-            raf.write(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Page p = pool.get(pid);
+        DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+        file.writePage(p);
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -268,8 +238,8 @@ public class BufferPool {
         Iterator<PageId> it = key.iterator();
         while (it.hasNext()) {
             PageId pid = it.next();
-            HeapPage hp = (HeapPage)pool.get(pid);
-            if (hp.isDirty().equals(tid))
+            Page p = pool.get(pid);
+            if (p.isDirty().equals(tid))
                 flushPage(pid);
         }
     }
@@ -284,8 +254,8 @@ public class BufferPool {
         PageId pid = order.get(0);
         order.remove(pid);
         try {
-            HeapPage hp = (HeapPage)pool.get(pid);
-            if (hp.isDirty() != null)
+            Page p = pool.get(pid);
+            if (p.isDirty() != null)
                 flushPage(pid);
             pool.remove(pid);
         } catch (Exception e) {
