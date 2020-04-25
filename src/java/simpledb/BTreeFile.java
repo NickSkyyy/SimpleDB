@@ -5,6 +5,8 @@ import java.util.*;
 
 import simpledb.Predicate.Op;
 
+import javax.swing.text.TabExpander;
+
 /**
  * BTreeFile is an implementation of a DbFile that stores a B+ tree.
  * Specifically, it stores a pointer to a root page,
@@ -773,6 +775,38 @@ public class BTreeFile implements DbFile {
 		// that the entries are evenly distributed. Be sure to update
 		// the corresponding parent entry. Be sure to update the parent
 		// pointers of all children in the entries that were moved.
+		int cnt = page.getNumEntries(), mark = (page.getNumEntries() + leftSibling.getNumEntries()) / 2;
+
+		// parent key down
+		Iterator<BTreeEntry> it = leftSibling.reverseIterator();
+		BTreeEntry down = new BTreeEntry(parentEntry.getKey(), null, null);
+		down.setLeftChild(it.next().getRightChild());
+		down.setRightChild(page.getChildId(0));
+		page.insertEntry(down);
+		cnt++;
+
+		it = leftSibling.reverseIterator();
+		while (cnt < mark) {
+			BTreeEntry bte = it.next();
+			leftSibling.deleteKeyAndRightChild(bte);
+			page.insertEntry(bte);
+			cnt++;
+		}
+
+		// upper entry
+		BTreeEntry upper = it.next();
+		leftSibling.deleteKeyAndRightChild(upper);
+		parentEntry.setKey(upper.getKey());
+		parentEntry.setLeftChild(leftSibling.getId());
+		parentEntry.setRightChild(page.getId());
+		parent.updateEntry(parentEntry);
+		updateParentPointers(tid, dirtypages, page);
+		updateParentPointers(tid, dirtypages, parent);
+
+		// deal with dirtyPages
+		dirtypages.put(parent.getId(), parent);
+		dirtypages.put(page.getId(), page);
+		dirtypages.put(leftSibling.getId(), leftSibling);
 	}
 	
 	/**
@@ -801,6 +835,38 @@ public class BTreeFile implements DbFile {
 		// that the entries are evenly distributed. Be sure to update
 		// the corresponding parent entry. Be sure to update the parent
 		// pointers of all children in the entries that were moved.
+		int cnt = page.getNumEntries(), mark = (page.getNumEntries() + rightSibling.getNumEntries()) / 2;
+
+		// parent key down
+		Iterator<BTreeEntry> it = page.reverseIterator();
+		BTreeEntry down = new BTreeEntry(parentEntry.getKey(), null, null);
+		down.setLeftChild(it.next().getRightChild());
+		down.setRightChild(rightSibling.getChildId(0));
+		page.insertEntry(down);
+		cnt++;
+
+		it = rightSibling.iterator();
+		while (cnt < mark) {
+			BTreeEntry bte = it.next();
+			rightSibling.deleteKeyAndLeftChild(bte);
+			page.insertEntry(bte);
+			cnt++;
+		}
+
+		// upper entry
+		BTreeEntry upper = it.next();
+		rightSibling.deleteKeyAndLeftChild(upper);
+		parentEntry.setKey(upper.getKey());
+		parentEntry.setLeftChild(page.getId());
+		parentEntry.setRightChild(rightSibling.getId());
+		parent.updateEntry(parentEntry);
+		updateParentPointers(tid, dirtypages, page);
+		updateParentPointers(tid, dirtypages, parent);
+
+		// deal with dirtyPages
+		dirtypages.put(parent.getId(), parent);
+		dirtypages.put(page.getId(), page);
+		dirtypages.put(rightSibling.getId(), rightSibling);
 	}
 	
 	/**
