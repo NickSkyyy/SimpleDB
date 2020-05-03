@@ -3,7 +3,7 @@ package simpledb;
 import java.util.*;
 
 /**
- * BTreeReverseScan is an operator which reads tuples in sorted order
+ * BTreeScan is an operator which reads tuples in sorted order
  * according to a predicate
  */
 public class BTreeReverseScan implements OpIterator {
@@ -19,7 +19,7 @@ public class BTreeReverseScan implements OpIterator {
     private String alias;
 
     /**
-     * Creates a B+ tree reverse scan over the specified table as a part of the
+     * Creates a B+ tree scan over the specified table as a part of the
      * specified transaction.
      *
      * @param tid
@@ -77,10 +77,10 @@ public class BTreeReverseScan implements OpIterator {
         this.alias = tableAlias;
         this.tablename = Database.getCatalog().getTableName(tableid);
         if(ipred == null) {
-            this.it = Database.getCatalog().getDatabaseFile(tableid).iterator(tid); // change to reverse
+            this.it = Database.getCatalog().getDatabaseFile(tableid).iterator(tid);
         }
         else {
-            this.it = ((BTreeFile) Database.getCatalog().getDatabaseFile(tableid)).indexIterator(tid, ipred);   // change to reverse
+            this.it = ((BTreeFile) Database.getCatalog().getDatabaseFile(tableid)).indexReverseIterator(tid, ipred);
         }
         myTd = Database.getCatalog().getTupleDesc(tableid);
         String[] newNames = new String[myTd.numFields()];
