@@ -1,8 +1,5 @@
 package simpledb;
 
-import com.sun.imageio.plugins.common.BitFile;
-
-import javax.xml.crypto.Data;
 import java.io.*;
 
 import java.util.*;
@@ -32,6 +29,7 @@ public class BufferPool {
     private Map<PageId, Page> pool; // PageId to Page
     private ArrayList<PageId> order;    // record the order of getPage
     private int numPages;
+    private Lock locks;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -42,6 +40,7 @@ public class BufferPool {
         // some code goes here
         pool = new HashMap<>(numPages);
         this.numPages = numPages;
+        locks = new Lock();
     }
     
     public static int getPageSize() {
@@ -76,6 +75,18 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
+        // locks
+        try {
+            boolean f = locks.grantLock(tid, pid, perm);
+            while (!f) {
+                Thread.sleep(1000);
+                f = locks.grantLock(tid, pid, perm);
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
         if (pool.containsKey(pid))
             return pool.get(pid);
         if (pool.size() + 1 > numPages)
@@ -101,6 +112,7 @@ public class BufferPool {
     public void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        locks.unLock(tid, pid);
     }
 
     /**
@@ -111,6 +123,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
