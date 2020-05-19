@@ -78,8 +78,10 @@ public class BufferPool {
         // locks
         try {
             boolean f = locks.grantLock(tid, pid, perm);
+            int cnt = 0;
             while (!f) {
                 Thread.sleep(1000);
+                if (++cnt == 3) break;
                 f = locks.grantLock(tid, pid, perm);
             }
         }
@@ -130,7 +132,7 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        return locks.getLock(tid, p);
     }
 
     /**
@@ -167,10 +169,8 @@ public class BufferPool {
         // not necessary for lab1
         DbFile file = Database.getCatalog().getDatabaseFile(tableId);
         ArrayList<Page> pages = file.insertTuple(tid, t);
-        for (int i = 0; i < pages.size(); i++) {
+        for (int i = 0; i < pages.size(); i++)
             pages.get(i).markDirty(true, tid);
-            pool.put(pages.get(i).getId(), pages.get(i));
-        }
     }
 
     /**
@@ -264,13 +264,22 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
-        PageId pid = order.get(0);
-        order.remove(pid);
         try {
+            boolean f = false;
+            PageId pid = null;
+            for (int i = 0; i < order.size(); i++) {
+                pid = order.get(i);
+                Page p = pool.get(pid);
+                if (p.isDirty() != null) continue;
+                f = true;
+                break;
+            }
+            if (!f) throw new DbException("All pages are dirty.");
             Page p = pool.get(pid);
             if (p.isDirty() != null)
                 flushPage(pid);
             pool.remove(pid);
+            order.remove(pid);
         } catch (Exception e) {
             e.printStackTrace();
         }

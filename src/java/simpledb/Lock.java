@@ -36,7 +36,7 @@ public class Lock {
         TransactionId admin = wLock.get(pid);
 
         // hit
-        if (tid.equals(admin) || (permList != null && permList.contains(tid))) return true;
+        if (tid.equals(admin) || (permList.contains(tid))) return true;
         if (perm == Permissions.READ_ONLY) {
             // read only
             if (admin != null) return false;
@@ -64,6 +64,8 @@ public class Lock {
     public synchronized void unLock(TransactionId tid, PageId pid) {
         if (rLock == null)
             rLock = new HashMap<>();
+
+        // init
         List<TransactionId> permList = rLock.get(pid);
         TransactionId admin = wLock.get(pid);
         if (permList != null) {
@@ -72,5 +74,26 @@ public class Lock {
         }
         if (tid.equals(admin))
             wLock.remove(pid);
+    }
+
+    /**
+     * 获得锁信息
+     *
+     * @param tid - 对应的事务
+     * @param pid - 对应的页
+     * @return boolean - 锁存在返回true，否则false
+     */
+    public synchronized boolean getLock(TransactionId tid, PageId pid) {
+        if (rLock == null)
+            rLock = new HashMap<>();
+        if (wLock == null)
+            wLock = new HashMap<>();
+
+        // init
+        List<TransactionId> permList = rLock.get(pid);
+        if (permList != null && permList.contains(tid)) return true;
+        TransactionId admin = wLock.get(pid);
+        if (tid.equals(admin)) return true;
+        return false;
     }
 }
