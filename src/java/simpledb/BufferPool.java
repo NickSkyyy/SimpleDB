@@ -125,7 +125,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-
+        transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -146,6 +146,18 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        if (commit)
+            flushPages(tid);
+        Set<PageId> key = pool.keySet();
+        Iterator<PageId> it = key.iterator();
+        while (it.hasNext()) {
+            PageId pid = it.next();
+            Page p = pool.get(pid);
+            if (holdsLock(tid, pid)) {
+                releasePage(tid, pid);
+                p.markDirty(false, tid);
+            }
+        }
     }
 
     /**
@@ -252,7 +264,7 @@ public class BufferPool {
         while (it.hasNext()) {
             PageId pid = it.next();
             Page p = pool.get(pid);
-            if (p.isDirty().equals(tid))
+            if (tid.equals(p.isDirty()))
                 flushPage(pid);
         }
     }
