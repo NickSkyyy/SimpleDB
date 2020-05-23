@@ -73,22 +73,28 @@ public class BufferPool {
      * @param perm the requested permissions on the page
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
-        throws TransactionAbortedException, DbException {
+            throws TransactionAbortedException, DbException {
         // some code goes here
         // locks
+        boolean isTAE = false;
         try {
             boolean f = locks.grantLock(tid, pid, perm);
             int cnt = 0;
             while (!f) {
-                Thread.sleep(1000);
-                if (++cnt == 3) break;
+                if (locks.isDead(tid, pid, null)) {
+                    isTAE = true;
+                    break;
+                }
+                //if (++cnt == 5) break;
+                Thread.sleep(200);
                 f = locks.grantLock(tid, pid, perm);
             }
         }
         catch (Exception e) {
-            e.printStackTrace();
+            //e.printStackTrace();
         }
 
+        if (isTAE) throw new TransactionAbortedException();
         if (pool.containsKey(pid))
             return pool.get(pid);
         if (pool.size() + 1 > numPages)
@@ -276,25 +282,28 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+        boolean f = false;
+        PageId pid = null;
         try {
-            boolean f = false;
-            PageId pid = null;
-            for (int i = 0; i < order.size(); i++) {
-                pid = order.get(i);
+            while (true) {
+                for (int i = 0; i < order.size(); i++) {
+                    pid = order.get(i);
+                    Page p = pool.get(pid);
+                    if (p.isDirty() != null) continue;
+                    f = true;
+                    break;
+                }
+                if (!f) break;
                 Page p = pool.get(pid);
-                if (p.isDirty() != null) continue;
-                f = true;
+                if (p.isDirty() != null)
+                    flushPage(pid);
+                discardPage(pid);
                 break;
             }
-            if (!f) throw new DbException("All pages are dirty.");
-            Page p = pool.get(pid);
-            if (p.isDirty() != null)
-                flushPage(pid);
-            pool.remove(pid);
-            order.remove(pid);
         } catch (Exception e) {
             e.printStackTrace();
         }
+        if (!f) throw new DbException("All pages are dirty.");
     }
 
 }
