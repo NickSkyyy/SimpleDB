@@ -30,6 +30,7 @@ public class BufferPool {
     private ArrayList<PageId> order;    // record the order of getPage
     private int numPages;
     private Lock locks;
+    private int cnt = 0;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -79,22 +80,22 @@ public class BufferPool {
         boolean isTAE = false;
         try {
             boolean f = locks.grantLock(tid, pid, perm);
-            int cnt = 0;
             while (!f) {
                 if (locks.isDead(tid, pid, null)) {
                     isTAE = true;
+                    //transactionComplete(tid, false);
                     break;
                 }
-                //if (++cnt == 5) break;
                 Thread.sleep(200);
                 f = locks.grantLock(tid, pid, perm);
             }
         }
         catch (Exception e) {
-            //e.printStackTrace();
+            e.printStackTrace();
         }
 
         if (isTAE) throw new TransactionAbortedException();
+        cnt = 0;
         if (pool.containsKey(pid))
             return pool.get(pid);
         if (pool.size() + 1 > numPages)
@@ -152,18 +153,37 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-        if (commit)
+        if (commit) {
             flushPages(tid);
-        Set<PageId> key = pool.keySet();
-        Iterator<PageId> it = key.iterator();
-        while (it.hasNext()) {
-            PageId pid = it.next();
-            Page p = pool.get(pid);
-            if (holdsLock(tid, pid)) {
-                releasePage(tid, pid);
-                p.markDirty(false, tid);
+            // delete pool info
+            Set<PageId> key = pool.keySet();
+            Iterator<PageId> it = key.iterator();
+            while (it.hasNext()) {
+                PageId pid = it.next();
+                if (holdsLock(tid, pid)) {
+                    releasePage(tid, pid);
+                    if (locks.isEmpty(pid)) {
+                        it.remove();
+                        order.remove(pid);
+                    }
+                }
             }
         }
+        else {
+            Set<PageId> key = pool.keySet();
+            Iterator<PageId> it = key.iterator();
+            while (it.hasNext()) {
+                PageId pid = it.next();
+                Page p = pool.get(pid);
+                if (p.isDirty() != null && p.isDirty().equals(tid)) {
+                    DbFile df = Database.getCatalog().getDatabaseFile(pid.getTableId());
+                    Page oldP = df.readPage(pid);
+                    pool.put(pid, oldP);
+                }
+            }
+        }
+        // delete locks info
+        locks.deleteLocks(tid);
     }
 
     /**
@@ -187,8 +207,11 @@ public class BufferPool {
         // not necessary for lab1
         DbFile file = Database.getCatalog().getDatabaseFile(tableId);
         ArrayList<Page> pages = file.insertTuple(tid, t);
-        for (int i = 0; i < pages.size(); i++)
+        for (int i = 0; i < pages.size(); i++) {
+            PageId pid = pages.get(i).getId();
             pages.get(i).markDirty(true, tid);
+            if (!pool.containsKey(pid)) pool.put(pid, pages.get(i));
+        }
     }
 
     /**
@@ -270,8 +293,10 @@ public class BufferPool {
         while (it.hasNext()) {
             PageId pid = it.next();
             Page p = pool.get(pid);
-            if (tid.equals(p.isDirty()))
+            if (tid.equals(p.isDirty())) {
                 flushPage(pid);
+                p.markDirty(false, null);
+            }
         }
     }
 
@@ -305,5 +330,4 @@ public class BufferPool {
         }
         if (!f) throw new DbException("All pages are dirty.");
     }
-
 }

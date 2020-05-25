@@ -45,6 +45,7 @@ public class Lock {
 
         if (perm == Permissions.READ_ONLY) {
             // read only
+            // 写锁不空且不为tid
             if (admin != null && !tid.equals(admin))
             {
                 Pair<TransactionId, PageId> tp = new Pair<>(admin, pid);
@@ -52,20 +53,24 @@ public class Lock {
                 wait.put(tid, waitList);
                 return false;
             }
+            // 写锁为空或者拥有tid的写锁
             if (!permList.contains(tid))
                 permList.add(tid);
             rLock.put(pid, permList);
-            return true;
         }
         else {
             // write
+            // 拥有tid的写锁
             if (tid.equals(admin)) return true;
+            // 写锁不为空且不是tid的写锁
             if (admin != null) {
                 Pair<TransactionId, PageId> tp = new Pair<>(admin, pid);
                 if (!waitList.contains(tp)) waitList.add(tp);
                 wait.put(tid, waitList);
                 return false;
             }
+            // 写锁为空
+            // 拥有超过1个读锁
             if (permList.size() > 1) {
                 for (int i = 0; i < permList.size(); i++) {
                     TransactionId pTid = permList.get(i);
@@ -75,18 +80,22 @@ public class Lock {
                 wait.put(tid, waitList);
                 return false;
             }
+            // 只有1个读锁，且不是tid的读锁
             if (permList.size() == 1 && !permList.contains(tid)) {
                 TransactionId pTid = permList.get(0);
                 Pair<TransactionId, PageId> tp = new Pair<>(pTid, pid);
-                if (!waitList.contains(tp)) waitList.add(tp);
+                if (!waitList.contains(tp) && !tid.equals(pTid)) waitList.add(tp);
                 wait.put(tid, waitList);
                 return false;
             }
             wLock.put(pid, tid);
-            if (!permList.contains(tid)) permList.add(tid);
-            rLock.put(pid, permList);
-            return true;
         }
+        // unlock waitList
+        for (Pair<TransactionId, PageId> tp : waitList) {
+            if (pid.equals(tp.getValue()))
+                waitList.remove(tp);
+        }
+        return true;
     }
 
     /**
@@ -103,23 +112,14 @@ public class Lock {
         TransactionId admin = wLock.get(pid);
         if (permList != null) {
             permList.remove(tid);
-            rLock.put(pid, permList);
+            if (permList.isEmpty())
+                rLock.remove(pid);
+            else
+                rLock.put(pid, permList);
         }
         if (tid.equals(admin))
             wLock.remove(pid);
-/*
-        // update wait list
-        Pair<TransactionId, PageId> tp = new Pair<>(tid, pid);
-        Set<TransactionId> key = wait.keySet();
-        Iterator<TransactionId> it = key.iterator();
-        while (it.hasNext()) {
-            TransactionId pTid = it.next();
-            List<Pair<TransactionId, PageId>> waitList = wait.get(pTid);
-            if (waitList == null) continue;
-            waitList.remove(tp);
-            wait.put(pTid, waitList);
-        }
-*/
+        // update wait info
     }
 
     /**
@@ -141,10 +141,13 @@ public class Lock {
     }
 
     /**
-     * 递归子树tid，检查死锁
+     * 检查死锁（递归）
      *
-     * @param tid - 子树事务
-     * @param mark - 标记序列（详细如下）
+     * @param tid - 对应的事务
+     * @param mark - 查环状态数组
+     *               -1 正在访问dfs树下子树
+     *         null / 0 未访问
+     *                1 dfs树下子树全访问
      * @return boolean - 出现死锁返回true，否则false
      */
     public synchronized boolean isDead(TransactionId tid, Map<TransactionId, Integer> mark) {
@@ -157,6 +160,7 @@ public class Lock {
         for (int i = 0; i < waitList.size(); i++) {
             Pair<TransactionId, PageId> tp = waitList.get(i);
             TransactionId nextTid = tp.getKey();
+            //System.out.println("Now trace with Pair<" + tid.toString() + ", " + nextTid.toString() + ">");
             if (!mark.containsKey(nextTid) || mark.get(nextTid) == 0) {
                 // 未加入mark序列（未被访问)，在序列且标记为0
                 boolean f = isDead(nextTid, mark);
@@ -169,14 +173,11 @@ public class Lock {
     }
 
     /**
-     * 检查死锁
+     * 检查死锁（入口）
      *
      * @param tid - 对应的事务
      * @param pid - 对应的页
-     * @param mark - 查环状态数组
-     *               -1 正在访问dfs树下子树
-     *         null / 0 未访问
-     *                1 dfs树下子树全访问
+     * @param mark - 如上
      * @return boolean - 出现死锁返回true，否则false
      */
     public synchronized boolean isDead(TransactionId tid, PageId pid, Map<TransactionId, Integer> mark) {
@@ -191,6 +192,7 @@ public class Lock {
             Pair<TransactionId, PageId> tp = waitList.get(i);
             TransactionId nextTid = tp.getKey();
             PageId nextPid = tp.getValue();
+            //System.out.println(tid.toString() + " wait " + nextTid.toString() + " on " + nextPid);
             if (pid.equals(nextPid)) {
                 if (!mark.containsKey(nextTid) || mark.get(nextTid) == 0) {
                     // 未加入mark序列（未被访问)，在序列且标记为0
@@ -205,18 +207,69 @@ public class Lock {
     }
 
     /**
-     * 解除等待信息
+     * 查看一个页是否可以被清除
+     *
+     * @param pid - 对应的页
+     * @return boolean - 如果没有事务占用返回true，否则false
+     */
+    public boolean isEmpty(PageId pid) {
+        List<TransactionId> permList = rLock.get(pid);
+        TransactionId admin = wLock.get(pid);
+        if ((permList == null || permList.isEmpty()) && (admin == null)) return true;
+        return false;
+    }
+
+    /**
+     * 删除所有锁
+     *
+     * @param tid - 对应的事务
+     */
+    public void deleteLocks(TransactionId tid) {
+        // find
+        List<PageId> permList = new ArrayList<>();
+        Set<PageId> key = rLock.keySet();
+        permList.addAll(key);
+        // unlock
+        for (int i = 0; i < permList.size(); i++)
+            unLock(tid, permList.get(i));
+        // update waitList
+        Set<TransactionId> key2 = wait.keySet();
+        Iterator<TransactionId> it2 = key2.iterator();
+        while (it2.hasNext()) {
+            TransactionId pTid = it2.next();
+            // 经过abort，tid不需要再等待任何事务的完成
+            if (tid.equals(pTid)) {
+                it2.remove();
+                continue;
+            }
+            // 查找其余的tid是否在等待该事务的完成
+            List<Pair<TransactionId, PageId>> waitList = wait.get(pTid);
+            if (waitList == null || waitList.isEmpty()) {
+                it2.remove();
+                continue;
+            }
+            Iterator<Pair<TransactionId, PageId>> it3 = waitList.iterator();
+            while (it3.hasNext()) {
+                if (tid.equals(it3.next().getKey()))
+                    it3.remove();
+            }
+            if (waitList.isEmpty())
+                it2.remove();
+            else
+                wait.put(pTid, waitList);
+        }
+    }
+
+    /**
+     * 撤销对锁的依赖
      *
      * @param tid - 对应的事务
      * @param pid - 对应的页
      */
-    public synchronized void unwait(TransactionId tid, PageId pid) {
+    public synchronized void unWait(TransactionId tid, PageId pid) {
         List<Pair<TransactionId, PageId>> waitList = wait.get(tid);
-        if (waitList == null) return;
-        Iterator<Pair<TransactionId, PageId>> it = waitList.iterator();
-        while (it.hasNext()) {
-            if (pid.equals(it.next().getValue()))
-                it.remove();
-        }
+        for (Pair<TransactionId, PageId> tp : waitList)
+            if (pid.equals(tp.getValue()))
+                waitList.remove(tp);
     }
 }
